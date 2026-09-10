@@ -1,0 +1,24 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+.pytest_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv
+
+# Local environment secrets
+.env
+.env.*
+!.env.example
+
+# Local scan caches and exported reports (may contain private paths)
+.cache/diskhog/
+scan-*.pkl
+scan-*.tmp
+scan-*.json
+scan-*.txt
