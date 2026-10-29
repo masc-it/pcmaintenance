@@ -1,5 +1,6 @@
 import os
 
+from pc_maintenance.diskhog import listing
 from pc_maintenance.diskhog.scanner import Scanner
 
 
@@ -91,21 +92,43 @@ def test_sparse_files_use_allocated_size(tmp_path, scan):
     assert result.root.size == allocated(tmp_path) + allocated(file)
 
 
-def test_unreadable_directory_is_reported(tmp_path, scan, monkeypatch):
+def test_unreadable_directory_is_reported(
+    tmp_path, scan, monkeypatch, list_dir_backend
+):
     blocked = tmp_path / "blocked"
     blocked.mkdir()
-    scandir = os.scandir
 
     def deny_blocked(path):
-        if os.fspath(path) == str(blocked):
-            raise PermissionError("test denial")
-        return scandir(path)
+        if path == str(blocked):
+            raise PermissionError(1, "Operation not permitted", path)
+        return list_dir_backend(path)
 
-    monkeypatch.setattr(os, "scandir", deny_blocked)
+    monkeypatch.setattr(listing, "list_dir", deny_blocked)
     result = scan(tmp_path)
 
     assert result.errors == 1
     assert result.dirs == 2
+    assert [(e.path, e.reason) for e in result.error_paths] == [
+        (str(blocked), "Operation not permitted")
+    ]
+
+
+def test_newest_mtime_propagates_to_ancestors(tmp_path, scan):
+    old = tmp_path / "old"
+    old.mkdir()
+    deep = old / "deep"
+    deep.mkdir()
+    file = deep / "file.txt"
+    file.write_text("x")
+    os.utime(file, (1_000_000_000, 1_000_000_000))
+    os.utime(deep, (900_000_000, 900_000_000))
+    os.utime(old, (800_000_000, 800_000_000))
+    os.utime(tmp_path, (700_000_000, 700_000_000))
+
+    result = scan(tmp_path)
+
+    assert result.root.mtime == 1_000_000_000
+    assert result.root.children[0].mtime == 1_000_000_000
 
 
 def test_cancelled_scan_does_not_call_completion(tmp_path):

@@ -7,7 +7,7 @@ import os
 import sys
 import threading
 
-from .analysis import analyze
+from .analysis import analyze, hotspot_total, ranked_categories
 from .formatting import human_size, pretty_path
 from .scanner import Node, Scanner, ScanResult
 
@@ -23,7 +23,7 @@ def run_print_mode(opts: argparse.Namespace) -> None:
     scanner = Scanner(
         opts.path,
         workers=opts.workers,
-        min_file_size=opts.min_file_mb * 1024 * 1024,
+        min_file_size=opts.min_file_mb * 1_000_000,
         on_done=on_done,
     )
     scanner.start()
@@ -55,16 +55,13 @@ def run_print_mode(opts: argparse.Namespace) -> None:
     print_level(root, 1, opts.print_depth)
 
     hotspots = analyze(root, top_n=20)
-    print("\nHotspots:")
-    ranked = sorted(
-        hotspots.categories.items(),
-        key=lambda kv: sum(n.size for n in kv[1]),
-        reverse=True,
-    )
-    for cat, nodes in ranked:
-        total = sum(n.size for n in nodes)
-        print(f"  {human_size(total):>10}  {cat} ({len(nodes)} items)")
-        for n in sorted(nodes, key=lambda x: x.size, reverse=True)[:5]:
+    print(f"\nHotspots: {human_size(hotspot_total(hotspots))}")
+    for category in ranked_categories(hotspots):
+        print(
+            f"  {human_size(category.size):>10}  {category.name} "
+            f"({len(category.nodes)} items)"
+        )
+        for n in category.nodes[:5]:
             print(f"      {human_size(n.size):>10}  {pretty_path(n.path())}")
 
     print("\nLargest files:")
@@ -78,7 +75,9 @@ def main() -> None:
         description="Disk usage hotspot analyzer TUI for dev machines.",
     )
     ap.add_argument("path", nargs="?", default="~", help="root to scan (default: ~)")
-    ap.add_argument("--workers", type=int, default=8, help="scanner threads")
+    ap.add_argument(
+        "--workers", type=int, default=16, help="scanner threads (default: 16)"
+    )
     ap.add_argument(
         "--min-file-mb",
         type=int,
@@ -105,19 +104,7 @@ def main() -> None:
     )
     ap.add_argument("--print-depth", type=int, default=2, help="depth for --print")
     ap.add_argument("--print-top", type=int, default=10, help="items/level for --print")
-    ap.add_argument(
-        "--keys",
-        dest="keys_mode",
-        action="store_true",
-        help="debug: show key names the terminal delivers, then exit",
-    )
     opts = ap.parse_args()
-
-    if opts.keys_mode:
-        from .tui import KeyDebugApp
-
-        KeyDebugApp().run()
-        return
 
     opts.path = os.path.abspath(os.path.expanduser(opts.path))
     if not os.path.isdir(opts.path):

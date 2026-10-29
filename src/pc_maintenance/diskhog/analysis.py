@@ -85,6 +85,44 @@ class Hotspots:
     top_files: list[tuple[int, Node]]  # (size, node) sorted desc
 
 
+@dataclass
+class Category:
+    name: str
+    size: int
+    nodes: list[Node]  # sorted by size, largest first
+
+
+def ranked_categories(hotspots: Hotspots) -> list[Category]:
+    ranked = [
+        Category(name, sum(n.size for n in nodes), sorted(nodes, key=_by_size))
+        for name, nodes in hotspots.categories.items()
+    ]
+    ranked.sort(key=lambda c: c.size, reverse=True)
+    return ranked
+
+
+def hotspot_total(hotspots: Hotspots) -> int:
+    """Space used by all hotspots, counting nested instances only once.
+
+    Categories overlap (a ``data/`` dir may contain a ``.git``), so the sum
+    of category sizes can exceed the real total.
+    """
+    members = {id(n) for nodes in hotspots.categories.values() for n in nodes}
+    total = 0
+    for nodes in hotspots.categories.values():
+        for node in nodes:
+            parent = node.parent
+            while parent is not None and id(parent) not in members:
+                parent = parent.parent
+            if parent is None:
+                total += node.size
+    return total
+
+
+def _by_size(node: Node) -> int:
+    return -node.size
+
+
 def _node_at(root: Node, rel: str) -> Node | None:
     n: Node | None = root
     for part in rel.split("/"):

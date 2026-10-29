@@ -1,4 +1,4 @@
-from pc_maintenance.diskhog.analysis import analyze
+from pc_maintenance.diskhog.analysis import analyze, hotspot_total, ranked_categories
 from pc_maintenance.diskhog.scanner import Node
 
 MIB = 1024 * 1024
@@ -59,3 +59,19 @@ def test_empty_tree():
 
     assert result.categories == {}
     assert result.top_files == []
+
+
+def test_hotspot_total_counts_nested_instances_once():
+    root = Node("/scan", is_dir=True)
+    data = add(root, "data", 50 * MIB, is_dir=True)
+    add(data, ".git", 20 * MIB, is_dir=True, opaque=True)
+    add(root, "node_modules", 10 * MIB, is_dir=True, opaque=True)
+
+    result = analyze(root)
+
+    assert [(c.name, c.size) for c in ranked_categories(result)] == [
+        ("Data dirs", 50 * MIB),
+        ("Git repos (.git)", 20 * MIB),
+        ("Node modules", 10 * MIB),
+    ]
+    assert hotspot_total(result) == 60 * MIB

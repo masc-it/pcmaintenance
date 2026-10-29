@@ -1,12 +1,27 @@
+import sys
 import threading
 
 import pytest
 
+from pc_maintenance.diskhog import listing
 from pc_maintenance.diskhog.scanner import Scanner
+
+BACKENDS = ["portable"] + (["bulk"] if sys.platform == "darwin" else [])
+
+
+@pytest.fixture(params=BACKENDS)
+def list_dir_backend(request, monkeypatch):
+    backend = (
+        listing.list_dir_portable
+        if request.param == "portable"
+        else listing._BulkLister()
+    )
+    monkeypatch.setattr(listing, "list_dir", backend)
+    return backend
 
 
 @pytest.fixture
-def scan():
+def scan(list_dir_backend):
     def run(path, **options):
         results = []
         done = threading.Event()

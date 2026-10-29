@@ -9,7 +9,7 @@ from pathlib import Path
 
 from .scanner import ScanResult
 
-CACHE_VERSION = 2
+CACHE_VERSION = 4
 
 
 CACHE_DIR = Path.home() / ".cache" / "diskhog"
